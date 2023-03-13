@@ -7,6 +7,31 @@ Created on Tue Sep 27 13:08:11 2022
 """
 import pandas as pd
 import numpy as np
+import Bio
+
+def identical_subunits(chains):
+  '''
+  take dictionary of biopython unpacked chain lists and see if they're
+  composed of an identical number of identical residues
+  Produce the chain dictionary :
+  pdb   = 'template.pdb'
+  model = PDBParser().get_structure('structure',pdb)
+  chains = {chain.id: chain.get_unpacked_list() for chain in model.get_chains()}
+  '''
+  # Get just the resnames (not the whole biopython res object)
+  res_dict = {chain: [res.resname for res in chains[chain]] 
+                      for chain in chains.keys()}
+  # index the chain ids (can't index dictionary keys directly)
+  chain_ids = list(chains.keys())
+  # if it's only one chain, we're not going to break the trajectory up
+  if len(chain_ids) == 1:
+    return(False)
+  # if it's multiple chains, check if they are all identical
+  else:
+    test = [res_dict[chain_ids[i]] == res_dict[chain_ids[i+1]]
+            for i in range(len(chain_ids)-1)]
+  # will have one boolean if everything is True or anything is False
+  return test[0]
 
 def rename_df_indices(df, append_string):
     # rename indices for a dataframe
