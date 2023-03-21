@@ -8,6 +8,11 @@ Created on Tue Sep 27 13:08:11 2022
 import pandas as pd
 import numpy as np
 import Bio
+import copy
+from parmed import gromacs
+import parmed as pmd
+from parmed.gromacs import GromacsTopologyFile
+
 
 def identical_subunits(chains):
   '''
@@ -138,3 +143,23 @@ def convert_rms_to_rgb(rmsf, color='red'):
             b='0'+b
 
     return '0x'+ r+g+b
+
+def parmed_underscore_topology(gromacs_processed_top, atom_indices, output_top):
+    '''
+    Add underscores to atom types of selected atoms.
+    This is usefule if using the plumed_scaled_topologies script 
+    for hremd system modification.
+    With this, you still need to open the new topology file and delete the 
+    underscores from the beginning of the file [atomtypes]
+    or else plumed will look for atoms with 2 underscores to apply lambda to.
+    '''
+    top = GromacsTopologyFile(gromacs_process_top)
+
+    for atom in top.view[atom_indices].atoms:
+        atom.type = f"{atom.type}_"
+        if atom.atom_type is not pmd.UnassignedAtomType:
+            atom.atom_type = copy.deepcopy(atom.atom_type)
+            atom.atom_type.name = f"{atom.atom_type.name}_"
+
+
+    top.save(output_top)
