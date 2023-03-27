@@ -215,10 +215,10 @@ class FitRDCs:
         self.jacobian = self.jac0.jac
 
         self.jac=least_squares(rdc_residuals,self.par,bounds=(self.lb.flatten(),self.ub.flatten()),
-                ftol=tolerance,x_scale='jac',
-                max_nfev=self.nIter,xtol=sel.tolerance,jac_sparsity=self.jacobian,args=self.rdc_calc_args)
+                ftol=self.tolerance,x_scale='jac',
+                max_nfev=self.nIter,xtol=self.tolerance,jac_sparsity=self.jacobian,args=self.rdc_calc_args)
     
-        self.fitted_rdcs = rdc_calc(self.jac.x, self.N_coord_dict, self.H_coord_dict, self.rdc_resids, self.rdc_values)
+        self.fitted_rdcs = rdc_calc(self.jac.x, self.N_coordinate_dict, self.H_coordinate_dict, self.residue_ids, self.rdc_values)
 
         self.residuals =  self.fitted_rdcs - self.rdc_values
 
