@@ -10,6 +10,7 @@ Dan Burns
 """
 import math
 import numpy as np
+import os
 from scipy.optimize import least_squares
 import biopandas
 from biopandas.pdb import PandasPdb
@@ -142,16 +143,7 @@ def rdc_calc(par0, N_coord_dict, H_coord_dict, rdc_resids, actual_rdcs):
     return rdc_sums
 
 
-par0 = np.array([math.pi,  math.pi, math.pi,   0.01, 0.1])
-lb = np.array([  0,    0,   0,   0, 0])
-ub = np.array([4*math.pi, 4*math.pi, 4*math.pi, np.inf, 0.66667])
-for x in range(1, Conf):
-    typ = np.array([math.pi,  math.pi,  math.pi,   0.01, 0.1])
-    typL = np.array([  0,    0,   0,   0, 0])
-    typU = np.array([2*math.pi, 2*math.pi, 2*math.pi, np.inf, 0.66667])
-    par0=np.vstack((par0,typ))
-    lb=np.vstack((lb,typL))
-    ub=np.vstack((ub,typU))
+
 
 
 def rdc_residuals(par0, N_coord_dict, H_coord_dict, rdc_resids, actual_rdcs):
@@ -159,10 +151,10 @@ def rdc_residuals(par0, N_coord_dict, H_coord_dict, rdc_resids, actual_rdcs):
     rdc_calc_results = {i:[] for i in range(par0.shape[0])}
 
     for j in range(par0.shape[0]):
-        a=parT[j][0]
-        b=parT[j][1]
-        c=parT[j][2]
-        azz=parT[j][3]
+        a=par0[j][0]
+        b=par0[j][1]
+        c=par0[j][2]
+        azz=par0[j][3]
         r=par0[j][4]
         dmax = 22000
         Da = 3*dmax*azz/4
@@ -194,27 +186,39 @@ class FitRDCs:
                  pdb_folder,
                  rdc_file,
 
-            )
+            ):
         self.ensemble_coordinates = pdbs_to_df(pdb_folder)
         self.residue_ids, self.rdc_values = get_rdc_data(rdc_file)
         self.N_coordinate_dict, self.H_coordinate_dict = combine_resids_coordinates(
                                         self.residue_ids, self.ensemble_coordinates)
+        self.par0 = np.array([math.pi,  math.pi, math.pi,   0.01, 0.1])
+        self.lb = np.array([  0,    0,   0,   0, 0])
+        self.ub = np.array([4*math.pi, 4*math.pi, 4*math.pi, np.inf, 0.66667])
+        self.nIter = 10000;       
+        self.tolerance = 10**-9
 
-
+        for x in range(1, len(self.ensemble_coordinates)):
+            typ = np.array([math.pi,  math.pi,  math.pi,   0.01, 0.1])
+            typL = np.array([  0,    0,   0,   0, 0])
+            typU = np.array([2*math.pi, 2*math.pi, 2*math.pi, np.inf, 0.66667])
+            self.par0=np.vstack((self.par0,typ))
+            self.lb=np.vstack((self.lb,typL))
+            self.ub=np.vstack((self.ub,typU))
 
         self.rdc_calc_args = (self.N_coordinate_dict,self.H_coordinate_dict,self.residue_ids,self.rdc_values)
     
     def fit_rdcs(self):
 
-        jac0=least_squares(self.rdc_residuals,par0.flatten(),bounds=(lb.flatten(),ub.flatten()),
+        self.jac0=least_squares(rdc_residuals,self.par0.flatten(),bounds=(self.lb.flatten(),self.ub.flatten()),
                 ftol=10**-5,xtol=10**-7,x_scale='jac', args=self.rdc_calc_args)
-        par=self.jac0.x
+        self.par=self.jac0.x
+        self.jacobian = self.jac0.jac
 
-        self.jac=least_squares(self.rdc_residuals,self.par,bounds=(lb.flatten(),ub.flatten()),
+        self.jac=least_squares(rdc_residuals,self.par,bounds=(self.lb.flatten(),self.ub.flatten()),
                 ftol=tolerance,x_scale='jac',
-                max_nfev=nIter,xtol=tolerance,jac_sparsity=self.jac0.jac,args=self.rdc_calc_args)
+                max_nfev=self.nIter,xtol=sel.tolerance,jac_sparsity=self.jacobian,args=self.rdc_calc_args)
     
-        self.fitted_rdcs = rdc_calc(self.jac.x,N_coord_dict, H_coord_dict,rdc_resids,actual_rdcs)
+        self.fitted_rdcs = rdc_calc(self.jac.x, self.N_coord_dict, self.H_coord_dict, self.rdc_resids, self.rdc_values)
 
         self.residuals =  self.fitted_rdcs - self.rdc_values
 
