@@ -24,7 +24,8 @@ def minimize_sidechains(output, pdb_file, temperature=300.00):
     pdb = PDBFile(pdb_file)
     modeller = Modeller(pdb.topology, pdb.positions)
 
-  
+    temperature = temperature*kelvin
+
     forcefield = ForceField('amber14-all.xml')
    
     # using implicit solvent, no cutoff is used
@@ -34,7 +35,6 @@ def minimize_sidechains(output, pdb_file, temperature=300.00):
     )
 
     ## CREATE THE SIMULATION
-    temperature = temperature*kelvin
     integrator = LangevinMiddleIntegrator(temperature, 2/picosecond, 0.002*picoseconds)
     # No pressue with implicit solvent
     #pressure = 1 * bar
