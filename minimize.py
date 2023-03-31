@@ -1,9 +1,7 @@
 from openmm.app import *
 from openmm import *
 from openmm.unit import *
-from openmmtools.integrators import *
 from openmm import app
-
 
 
 
