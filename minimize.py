@@ -27,15 +27,22 @@ def minimize_sidechains(output, pdb_file, temperature=300.00):
 
     temperature = temperature*kelvin
 
-    forcefield = ForceField('amber14-all.xml')
+    forcefield = ForceField('amber14-all.xml','implicit/obc2.xml')
+    system = forcefield.createSystem(modeller.topology,nonbondedMethod=app.NoCutoff,
+                                    constraints=app.HBonds, 
+                                    
+    )
    
     # using implicit solvent, no cutoff is used
     #removed this argument for openmm 8.0 -- implicitSolvent=app.OBC2,
+    '''
+    openmm 7 version
+    forcefield = ForceField('amber14-all.xml')
     system = forcefield.createSystem(modeller.topology,nonbondedMethod=app.NoCutoff,
-                                    constraints=app.HBonds, 
+                                    constraints=app.HBonds, implicitSolvent=app.OBC2,
                                     implicitSolventSaltConc=0.1*moles/liter,
     )
-
+    '''
     ## CREATE THE SIMULATION
     integrator = LangevinMiddleIntegrator(temperature, 2/picosecond, 0.002*picoseconds)
     # No pressue with implicit solvent
