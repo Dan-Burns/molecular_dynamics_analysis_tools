@@ -1,18 +1,10 @@
 from openmm.app import *
 from openmm import *
-from openff.toolkit.topology import *
 from openmm.unit import *
-import openmmtools as omt
 from openmmtools.integrators import *
 from openmm import app
-import parmed
-import MDAnalysis as mda
 
-import os
-import numpy as np
-import pandas as pd
-import re
-from sys import stdout
+
 
 
 def minimize_sidechains(output, pdb_file, temperature=300.00):
