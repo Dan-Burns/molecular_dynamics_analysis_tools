@@ -163,3 +163,26 @@ def parmed_underscore_topology(gromacs_processed_top, atom_indices, output_top):
 
 
     top.save(output_top)
+
+
+def combine_selections(selections,start_with_select=True):
+    '''
+    Given a list of MDAnalysis selections, this will combine them into a long string of selections
+    If start_with_select=False, return the selection string without the first word as "start"
+    This is useful if the selection goes into an MDA function that doesn't want "select" in it, just the items to be
+    selected.
+    '''
+
+    if start_with_select == True:
+        combined_selection = "select "
+    else:
+        combined_selection = ""
+    for selection in selections:
+        if selection != selections[-1]:
+            # remove the "selection" word from beginning of string and put back into string format
+            edit = " ".join(selection.split()[1:])
+            combined_selection += f"({edit}) or "
+    # add the final selection without the "or" at the end
+    edit = " ".join(selections[-1].split()[1:])
+    combined_selection += f"({edit})"
+    return combined_selection
