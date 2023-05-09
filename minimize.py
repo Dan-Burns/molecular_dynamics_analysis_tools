@@ -110,7 +110,8 @@ def minimize_morph(structure, reference, output):
     '''
     force a structure into the backbone conformation of another reference structure.
     Useful for homologs where you might have an experimental structure and then a modeled structure with a different sequence.
-    You can make the modelled structure match the experimental structure.
+    If you think the modelled structure is more likely to take the conformation of the experimental structure,
+    you can make the morph the modelled structure into the backbone conformation of the experimental structure.
     
     '''
 
