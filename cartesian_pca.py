@@ -155,6 +155,8 @@ def cartesian_pca(trajs, structure, selection=None, selection_align=False, outpu
 
     # get the file names from all the input trajectories to use as 
     # record names for the analyses
+    # TODO add option to specify system names
+    # could be in the form of a dictionary of system name: path to traj
     ordered_systems = []
     for traj in trajs:
         ordered_systems.append(traj.split("/")[-1].split('.')[0])
@@ -183,6 +185,45 @@ def cartesian_pca(trajs, structure, selection=None, selection_align=False, outpu
     pc = pca.PCA(u, select=selection,
              align=False, mean=None,
              n_components=None).run()
+    
+    # return the pca object and the ca selection
+    # TODO return ca structure or can just generate it separately
+
+    # use this outside of the function to transformed = pc.transform(ca)
+    return pc, ca
+
+
+class PC_Dynamics():
+    '''
+    Should make this into a class
+    transform the pc on given components
+    calculate average projections
+    average rmsf
+    rmsf per residue
+    return min and max structures 
+    return rmsf color per residue pymol selections
+    etc.
+
+    
+    
+    '''
+    def __init__(pc_object, ca_selection):
+        self.pc = pc_object
+        self.ca = ca_selection
+
+
+    
+    n_frames = int(len(u.trajectory)/len(ordered_systems))
+    system_frames = {ordered_systems[i]:(i*n_frames,i*(n_frames)+n_frames) for i in range(len(ordered_systems)) }
+
+    principal_components = [i for i in range(10)]
+    mean_rmsfs = {name:[] for name in ordered_systems}
+    system_average_projections = {name:[] for name in ordered_systems}
+    rmsf = []
+    averaged_projection = []
+
+
+
 
 
     
