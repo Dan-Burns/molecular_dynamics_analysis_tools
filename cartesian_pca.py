@@ -120,6 +120,16 @@ def write_ca_structure(structure, output, resnums=None):
         print('CA structure file needs to be pdb format')
     ca_selection.write(output)
 
+def get_traj_names(trajs):
+    # get the file names from all the input trajectories to use as 
+    # record names for the analyses
+    # could be in the form of a dictionary of system name: path to traj
+    ordered_systems = {}
+
+    for traj in trajs:
+        ordered_systems[(traj.split("/")[-1].split('.')[0])] = traj
+    return ordered_systems
+
 def cartesian_pca(trajs, structure, selection=None, selection_align=False, output_folder=None, output_prepend=None):
     '''
     PCA on the cartesian coordinates of a trajectory
@@ -153,19 +163,13 @@ def cartesian_pca(trajs, structure, selection=None, selection_align=False, outpu
     
     os.makedirs(output_folder)
 
-    # get the file names from all the input trajectories to use as 
-    # record names for the analyses
-    # TODO add option to specify system names
-    # could be in the form of a dictionary of system name: path to traj
-    ordered_systems = []
-    for traj in trajs:
-        ordered_systems.append(traj.split("/")[-1].split('.')[0])
+    ordered_systems = get_traj_names(trajs)
 
     u = mda.Universe(structure, trajs)
     
     # if you're choosing to do PCA on a selection and want the additional alignment based on the selection
     # that happens here 
-    if selection and selection_align=True:
+    if selection and selection_align==True:
         ref = mda.Universe(structure)   
         alignment = align.AlignTraj(u, ref, select=selection, filename=f'{output_folder}/selection_aligned_traj.xtc')
         alignment.run()
@@ -192,8 +196,33 @@ def cartesian_pca(trajs, structure, selection=None, selection_align=False, outpu
     # use this outside of the function to transformed = pc.transform(ca)
     return pc, ca
 
+def get_traj_lengths(structure, trajs):
+    '''
+    find the shortest trajectory to determine the length to make each traj in the concatenated trajectory
+    Parameters
+    ----------
+    structure: string
+        path to C-alpha structure file that corresponds to the number of atoms in all the trajectories in trajs
 
-class PC_Dynamics():
+    trajs: list
+        list of paths to trajectories
+    '''
+    traj_names = get_traj_names(trajs)
+
+    traj_lengths = {}
+    for traj in traj_names:
+        u = mda.Universe(structure, traj_names[traj])
+        traj_lengths[traj] = len(u)
+
+    return traj_lengths
+
+
+
+ # get the trajectory that has the minimum length 
+ # min(d, key=d.get)
+
+
+class Combined_PCA:
     '''
     Should make this into a class
     transform the pc on given components
@@ -205,25 +234,109 @@ class PC_Dynamics():
     etc.
 
     
-    
     '''
-    def __init__(pc_object, ca_selection):
+    def __init__(self,pc_object, ca_selection, structure, trajectories, 
+                 original_structure=None,original_trajectories=None):
         self.pc = pc_object
         self.ca = ca_selection
+        self.transformed = pc_object.transform(ca_selection)
+        self.structure = structure
+        self.trajectories = trajectories
+        self.original_structure = original_structure
+        self.original_trajectories = original_trajectories
+        self.system_traj_paths = get_traj_names(trajectories)
+        self.ordered_systems = list(self.system_traj_paths.keys())
 
 
+    ### Track the frame numbers corresponding to the length of the combined trajectory
+    #### and the corresponding frame numbers (to get matching CA conformation) in original all-atom traj
+    ### This is so you can do combined PCA on edited (shorter) trajectories but still go back and find
+    ### The frame in the original traj
+
+        self.u = mda.Universe(self.structure, self.trajectories)
+
+
+        self.n_frames = int(len(u.trajectory)/len(self.ordered_systems))
+        self.system_frames = {self.ordered_systems[i]:(i*n_frames,i*(n_frames)+n_frames) for i in range(len(self.ordered_systems)) }
+
+    #principal_components = [i for i in range(10)]
+    #mean_rmsfs = {name:[] for name in ordered_systems}
+    #system_average_projections = {name:[] for name in ordered_systems}
+    #rmsf = []
+    #averaged_projection = []
+
+
+
+
+    def get_projection(self,component):
+        '''
+        get a projection 
+        component is the canonical principal component ID rather than 0 based index
+        i.e. enter 1 if you want PC1 (0 will not return anything)
+        
+        '''
+        component = component-1
+
+        pcn = self.pc.p_components[:, component]
+        # Take the ca selection transform = #n frames
+        trans = self.transformed[:, 0]
+        # project the frames onto the principal component (mean centers the motion)
+        projected = np.outer(trans, pcn) + self.pc.mean.flatten()
+        # reshape the projection so that you have n_frames X n_atoms X 3 dimensions
+        coordinates = projected.reshape(len(trans), -1, 3)
+        return coordinates
+
+    def get_average_projection(self,component,system):
+        '''
+        Find the mean of the transformed column components that correspond to the frames of one of the 
+        system's trajectories
+        
+        '''
+
+        component = component -1
+
+        return self.transformed[self.system_frames[system][0]:self.system_frames[system][1],component].mean()
     
-    n_frames = int(len(u.trajectory)/len(ordered_systems))
-    system_frames = {ordered_systems[i]:(i*n_frames,i*(n_frames)+n_frames) for i in range(len(ordered_systems)) }
+    def get_average_rmsf(self,component,system):
 
-    principal_components = [i for i in range(10)]
-    mean_rmsfs = {name:[] for name in ordered_systems}
-    system_average_projections = {name:[] for name in ordered_systems}
-    rmsf = []
-    averaged_projection = []
+        component = component-1
+
+        return np.abs(self.transformed[self.system_frames[system][0]:self.system_frames[system][1],component]-
+                                   self.system_average_projections[system][component]).mean()
+        
+       
+       
+    def get_rmsf_per_residue(self,component):
+
+        #component = component-1
+
+        # Take the first principal component
+       # principal_component = self.pc.p_components[:, component]
+        # Take the ca selection transform = n_frames
+        #transformation = self.transformed[:, component]
+        #projection = np.outer(transformation, principal_component) + self.pc.mean.flatten()
+        # reshape the projection so that you have n_frames X n_atoms X 3 dimensions
+        #coordinates = projection.reshape(len(transformation), -1, 3)
+
+        rmsfs = {}
+
+        coordinates = self.get_projection(component)
+
+        for system in self.system_frames:
+            start,end = self.system_frames[system][0], self.system_frames[system][1]
+
+            # create a projected universe
+            pu = mda.Merge(self.ca)
+            # load frames for just the system of interest
+            pu.load_new(coordinates[start:end,:,:])
+            #rmsf
+            calphas = pu.select_atoms('name CA')
+            rmsfer = RMSF(calphas, verbose=True).run()
+            
+            rmsfs[system] = rmsfer.rmsf
+        
+        return rmsfs
 
 
 
-
-
-    
+            
