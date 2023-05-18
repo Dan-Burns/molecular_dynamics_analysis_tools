@@ -63,7 +63,9 @@ def write_ca_structure(structure, output, resnums=None):
 
 
 
-def write_ca_traj(structure, traj, output, resnums=None, frame_start=0, frame_end=None, align_ref=None,
+def write_ca_traj(structure, traj, output, resnums=None, 
+                  frame_start=0, frame_end=None, stride=1,
+                  align_ref=None,
                   split_subunits=False):
     '''
     Save a trajectory as only CA coordinates
@@ -123,12 +125,12 @@ def write_ca_traj(structure, traj, output, resnums=None, frame_start=0, frame_en
         alignment = align.AlignTraj(u, ref, select=selection)
         alignment.run()
     else:
-        align_ref = structure
+        ref = mda.Universe(structure)
         alignment = align.AlignTraj(u, ref, select=selection)
         alignment.run()
     # write trajectory
     with mda.Writer(f'{output}', CAs.n_atoms) as W:
-        for ts in u.trajectory[frame_start:frame_end]:
+        for ts in u.trajectory[frame_start:frame_end:stride]:
             W.write(CAs)
 
 
@@ -291,7 +293,7 @@ class Combined_PCA:
     
     '''
     def __init__(self,pc_object, ca_selection, structure, trajectories, 
-                 original_structure=None,original_trajectories=None,
+                 original_structures=None,original_trajectories=None,
                  start_offsets=None,original_traj_stride=None,
                  ):
         self.pc = pc_object
@@ -299,7 +301,7 @@ class Combined_PCA:
         self.transformed = pc_object.transform(ca_selection)
         self.structure = structure
         self.trajectories = trajectories
-        self.original_structure = original_structure
+        self.original_structures = original_structures
         self.original_trajectories = original_trajectories
         self.system_traj_paths = get_traj_names(trajectories)
         self.ordered_systems = list(self.system_traj_paths.keys())
@@ -318,13 +320,13 @@ class Combined_PCA:
         self.n_frames = int(len(self.u.trajectory)/len(self.ordered_systems))
         self.system_frames = {self.ordered_systems[i]:(i*self.n_frames,i*(self.n_frames)+self.n_frames) for i in range(len(self.ordered_systems)) }
         
-        if start_offsets = None:
+        if start_offsets == None:
             self.start_offsets = {self.ordered_systems[i]: 0 for i in range(len(self.ordered_systems))}
         else:
             self.start_offsets = {self.ordered_systems[i]: start_offsets[i] for i in start_offsets}
 
         #TODO Add a function to align the CA residues (assuming resids match) and if it's beyond a tolerance, return a warning
-        if original_traj_stride = None:
+        if original_traj_stride == None:
             self.original_traj_stride = {self.ordered_systems[i]: 1 for i in range(len(self.ordered_systems))}
         else:
             self.original_traj_stride = {self.ordered_systems[i]: i for i in original_traj_stride}
@@ -379,9 +381,9 @@ class Combined_PCA:
         #TODO check if self.average projections exists and if n_components is less than len(list(self.proj.keys())) then
         # don't run this elif n_compontns is greater do range(len(keys),n_components)
 
-        if self.average_projections.keys() == None:
+        if self.average_projections == None:
 
-            self.average_projections = {self.ordered_systems[i]:[] for i in self.ordered_systems}
+            self.average_projections = {system:[] for system in self.ordered_systems}
             start = 0
         
         else:
@@ -398,12 +400,12 @@ class Combined_PCA:
         for component in range(start,n_components):
             for system in self.average_projections.keys():
 
-            self.average_projections[system].append(
+                self.average_projections[system].append(
                     self.transformed[self.system_frames[system][0]:self.system_frames[system][1],component].mean()
                 )
         
     
-    def get_average_rmsf(self,n_components):
+    def get_average_rmsf(self,n_components=10):
 
         '''
         Get the average rmsf on n_components for each system.
@@ -415,9 +417,9 @@ class Combined_PCA:
 
         # n_components
 
-        if self.average_rmsf.keys() == None:
+        if self.average_rmsf == None:
 
-            self.average_rmsf = {self.ordered_systems[i]:[] for i in self.ordered_systems}
+            self.average_rmsf = {system:[] for system in self.ordered_systems}
             start = 0
 
         else:
@@ -474,98 +476,98 @@ class Combined_PCA:
         
         return rmsfs
 
-def get_extreme_projections(self, n_components, output_path):
-    '''
-    Find the minimum and maximum projection on each of n_components.
-    This will be the most apparent description of the dynamic captured by the PC.
-    
-    '''
-
- 
-    for component in range(n_components):
-        projection_min = np.where(self.transformed[:,component] == self.transformed[:,component].min())
-        projection_max = np.where(self.transformed[:,component] == self.transformed[:,component].max())
-
-        # get_projection is expecting the 1 indexed pc id
-        coordinates = self.get_projection(component+1)
-
-        pu = mda.Merge(self.ca)
-        pu.load_new(coordinates[projection_min])
-        proj_calpha = pu.select_atoms('name CA')
-        proj_calpha.write(f'{output_path}/pc_{component+1}_min_projected_structure.pdb')
-
-        pu = mda.Merge(self.ca)
-        pu.load_new(coordinates[projection_max])
-        proj_calpha = pu.select_atoms('name CA')
-        proj_calpha.write(f'{output_path}/pc_{component+1}_max_projected_structure.pdb')
-
-
-def get_original_extremes(component,output_path):
-    '''
-    Find the frames in the original trajectories that correspond to the extreme structures for each system
-
-    '''
-
-    # get frames of concatenated trajectory where each construct is at its min or max region of the eigenvector
-    
-    min_frames = {system:None for system in self.ordered_systems}
-    max_frames = {system:None for system in self.ordered_systems}
-
-    component = component-1
+    def get_extreme_projections(self, n_components, output_path):
+        '''
+        Find the minimum and maximum projection on each of n_components.
+        This will be the most apparent description of the dynamic captured by the PC.
         
-    for system in self.system_frames:
-        start = self.system_frames[system][0]
-        end = self.system_frames[system][1]
+        '''
 
-        projection_min = np.where(self.transformed[:,component] == self.transformed[start:end,component].min())[0][0]
-        min_frames[system] = projection_min
-        projection_max = np.where(self.transformed[:,component] == self.transformed[start:end,component].max())[0][0]
-        max_frames[system] = projection_max
+    
+        for component in range(n_components):
+            projection_min = np.where(self.transformed[:,component] == self.transformed[:,component].min())
+            projection_max = np.where(self.transformed[:,component] == self.transformed[:,component].max())
 
-    #local = '../from_pronto/trajectories_3'
-    #output_dir = f'../cartesian_pca/results/structures/extreme_structures/{subset_ids}'
-    #for system, concatenated_frame_indices in system_frames.items():
+            # get_projection is expecting the 1 indexed pc id
+            coordinates = self.get_projection(component+1)
 
-    #TODO add checks to make sure number of items in input lists (original trajs/ca trajs) match
-    # might change to dictionary inputs expecting standard names for the keys
-    for i in range(len(self.ordered_systems)):
+            pu = mda.Merge(self.ca)
+            pu.load_new(coordinates[projection_min])
+            proj_calpha = pu.select_atoms('name CA')
+            proj_calpha.write(f'{output_path}/pc_{component+1}_min_projected_structure.pdb')
 
+            pu = mda.Merge(self.ca)
+            pu.load_new(coordinates[projection_max])
+            proj_calpha = pu.select_atoms('name CA')
+            proj_calpha.write(f'{output_path}/pc_{component+1}_max_projected_structure.pdb')
+
+
+    def get_original_extremes(self,component,output_path):
+        '''
+        Find the frames in the original trajectories that correspond to the extreme structures for each system
+
+        '''
+
+        # get frames of concatenated trajectory where each construct is at its min or max region of the eigenvector
         
-        system = self.ordered_systems[i]
-        structure = self.original_structures[i]
-        traj = self.original_trajectories[i]
-        offset = self.start_offsets[i]
-        stride = self.original_traj_stride[i]
-                
-        ou = mda.Universe(structure, traj)
+        min_frames = {system:None for system in self.ordered_systems}
+        max_frames = {system:None for system in self.ordered_systems}
 
-        # minimum
-        # frame index in concatenated trajectory minus the frame number where the given system begins in the concatenated traj
-        adjusted_frame = min_frames[system] - self.system_frames[system][0]
-        # plus the frame number where the ca traj start in relation to the beginning of the original traj (0 by default)
-        # this is useful if you didn't include early frames in the original traj due to them not being equilibrated
-        adjusted_frame = adjusted_frame + offset
-        # multiplied by a stride interval (1 by default)
-        adjusted_frame = adjusted_frame * stride
-        #TODO print the frame numbers
-        ou.trajectory[adjusted_frame]
-        selection = u.select_atoms('all')
+        component = component-1
+            
+        for system in self.system_frames:
+            start = self.system_frames[system][0]
+            end = self.system_frames[system][1]
 
-        output = f'{output_path}/{system}/{component+1}'
-        if os.path.exists(output):
-            pass
-        else:
-            os.makedirs(output)
-        with mda.Writer(f'{output}/{system}_{subsel_name}_pc{component+1}_min.pdb',selection.n_atoms) as w:
-            w.write(selection)
+            projection_min = np.where(self.transformed[:,component] == self.transformed[start:end,component].min())[0][0]
+            min_frames[system] = projection_min
+            projection_max = np.where(self.transformed[:,component] == self.transformed[start:end,component].max())[0][0]
+            max_frames[system] = projection_max
 
-        # maximum
-        adjusted_frame = max_frames[system] - self.system_frames[system][0]
-        adjusted_frame = adjusted_frame + offset
-        adjusted_frame = adjusted_frame * stride
-        ou.trajectory[adjusted_frame]
-        selection = u.select_atoms('all')
-        with mda.Writer(f'{output}/{system}_{subsel_name}_pc{component+1}_max.pdb',selection.n_atoms) as w:
-            w.write(selection)
+        #local = '../from_pronto/trajectories_3'
+        #output_dir = f'../cartesian_pca/results/structures/extreme_structures/{subset_ids}'
+        #for system, concatenated_frame_indices in system_frames.items():
+
+        #TODO add checks to make sure number of items in input lists (original trajs/ca trajs) match
+        # might change to dictionary inputs expecting standard names for the keys
+        for i in range(len(self.ordered_systems)):
+
+            
+            system = self.ordered_systems[i]
+            structure = self.original_structures[i]
+            traj = self.original_trajectories[i]
+            offset = self.start_offsets[self.ordered_systems[i]]
+            stride = self.original_traj_stride[self.ordered_systems[i]]
+                    
+            ou = mda.Universe(structure, traj)
+
+            # minimum
+            # frame index in concatenated trajectory minus the frame number where the given system begins in the concatenated traj
+            adjusted_frame = min_frames[system] - self.system_frames[system][0]
+            # plus the frame number where the ca traj start in relation to the beginning of the original traj (0 by default)
+            # this is useful if you didn't include early frames in the original traj due to them not being equilibrated
+            adjusted_frame = adjusted_frame + offset
+            # multiplied by a stride interval (1 by default)
+            adjusted_frame = adjusted_frame * stride
+            #TODO print the frame numbers
+            ou.trajectory[adjusted_frame]
+            selection = ou.select_atoms('all')
+
+            output = f'{output_path}/{system}/{component+1}'
+            if os.path.exists(output):
+                pass
+            else:
+                os.makedirs(output)
+            with mda.Writer(f'{output}/{system}_pc{component+1}_min.pdb',selection.n_atoms) as w:
+                w.write(selection)
+
+            # maximum
+            adjusted_frame = max_frames[system] - self.system_frames[system][0]
+            adjusted_frame = adjusted_frame + offset
+            adjusted_frame = adjusted_frame * stride
+            ou.trajectory[adjusted_frame]
+            selection = ou.select_atoms('all')
+            with mda.Writer(f'{output}/{system}_pc{component+1}_max.pdb',selection.n_atoms) as w:
+                w.write(selection)
 
 
