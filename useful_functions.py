@@ -186,3 +186,13 @@ def combine_selections(selections,start_with_select=True):
     edit = " ".join(selections[-1].split()[1:])
     combined_selection += f"({edit})"
     return combined_selection
+
+def clean_traj(structure, traj, output='clean_traj.xtc', selection='not (resname HOH or resname SOL or resname Na or resname Cl)',
+               start=1, stop=-1, stride=1):
+    
+    u = mda.Universe(structure,traj)
+    sel = u.select_atoms(selection)
+
+    with mda.Writer(output, sel.n_atoms) as f:
+        for frame in u.trajectory[start:stop:stride]:
+            f.write(sel)
